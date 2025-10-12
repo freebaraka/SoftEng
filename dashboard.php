@@ -17,7 +17,7 @@ if ($conn->connect_error) {
 }
 
 // Fetch partners data
-$sql = "SELECT * FROM partners ORDER BY donation_date DESC";
+$sql = "SELECT * FROM partners";
 $result = $conn->query($sql);
 
 ?>
@@ -82,7 +82,7 @@ $result = $conn->query($sql);
                 <div class="card">
                     <i class="fa-solid fa-handshake-angle card-icon"></i>
                     <h3>Partners</h3>
-                    <p>12</p>
+                    <p>16</p>
                 </div>
             </section>
 

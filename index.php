@@ -8,7 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
 
     // Simple check — replace with real DB check later if needed
-    if ($username === 'admin' && $password === '1234') {
+    if ($username === 'admin' && $password === '5678') {
         $_SESSION['logged_in'] = true;
         header('Location: dashboard.php');
         exit(); // ✅ always exit after header redirect
