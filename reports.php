@@ -57,6 +57,22 @@
             font-size: 0.85rem;
             color: #94a3b8;
         }
+
+        .back-btn {
+            display: inline-block;
+            background: #38bdf8;
+            color: #0f172a;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: 0.3s ease;
+        }
+
+        .back-btn:hover {
+            background: #0ea5e9;
+            transform: scale(1.05);
+        }
     </style>
 </head>
 <body>
@@ -65,6 +81,9 @@
         <h1>Under Maintenance</h1>
         <p>We're currently performing some updates and improvements.<br>
         This page will be available again shortly.</p>
+
+        <a href="dashboard.php" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Back to Dashboard</a>
+
         <p class="footer">— SaveEat Team</p>
     </div>
 </body>
