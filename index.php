@@ -7,15 +7,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
 
-    // Simple check — replace with real DB check later if needed
-    if ($username === 'admin' && $password === '5678') {
-        $_SESSION['logged_in'] = true;
-        header('Location: dashboard.php');
-        exit(); // ✅ always exit after header redirect
+    $conn = new mysqli('localhost','root','1234','SaveEat');
+    if ($conn->connect_error) {
+        die("Database connection failed: " . $conn->connect_error);
+    }
+
+    $stmt = $conn->prepare("SELECT id, role, password FROM users WHERE username=?");
+    $stmt->bind_param("s", $username);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows === 1) {
+        $user = $result->fetch_assoc();
+
+        if ($user['role'] !== 'admin') {
+            $message = "Only admins can login here.";
+        } elseif ($password === $user['password']) {
+            $_SESSION['logged_in'] = true;
+            $_SESSION['admin_id'] = $user['id'];
+            $_SESSION['admin_username'] = $username;
+            header("Location: dashboard.php");
+            exit;
+        } else {
+            $message = "Incorrect password.";
+        }
     } else {
-        $message = 'Invalid username or password.';
+        $message = "Admin not found.";
     }
 }
+
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
