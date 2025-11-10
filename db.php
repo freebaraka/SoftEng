@@ -1,7 +1,7 @@
 <?php
 $host = 'localhost';
 $user = 'root';     // change if needed
-$pass = '1234';         // change if needed
+$pass = '';         // change if needed
 $dbname = 'SaveEat';
 
 $conn = new mysqli($host, $user, $pass, $dbname);
