@@ -1,10 +1,15 @@
 <?php
-// api/add_food.php
+// api/add_food.php - DEBUG VERSION
 header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../db.php';
 session_start();
 
-// simple authorization: require logged in (adjust to your roles)
+// Debug: Log the request
+error_log("=== ADD FOOD API CALLED ===");
+error_log("POST data: " . print_r($_POST, true));
+error_log("RAW input: " . file_get_contents('php://input'));
+
+// simple authorization: require logged in
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     http_response_code(401);
     echo json_encode(['success' => false, 'error' => 'Not authenticated']);
@@ -13,12 +18,18 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 
 // Accept JSON or form POST
 $input = $_POST;
-if (empty($input)) {
-    // try JSON body
-    $raw = file_get_contents('php://input');
+$raw = file_get_contents('php://input');
+error_log("Raw input: " . $raw);
+
+if (empty($input) && !empty($raw)) {
     $decoded = json_decode($raw, true);
-    if (is_array($decoded)) $input = $decoded;
+    error_log("Decoded JSON: " . print_r($decoded, true));
+    if (is_array($decoded)) {
+        $input = $decoded;
+    }
 }
+
+error_log("Final input: " . print_r($input, true));
 
 $title = trim($input['title'] ?? '');
 $food_type = trim($input['food_type'] ?? '');
@@ -29,11 +40,21 @@ $price_raw = $input['price'] ?? null;
 $price = ($price_raw === '' || $price_raw === null) ? null : floatval($price_raw);
 $expires_at_raw = $input['expires_at'] ?? '';
 
+error_log("Parsed values:");
+error_log("Title: '$title'");
+error_log("Food type: '$food_type'");
+error_log("Portion: '$portion'");
+error_log("Quantity: $quantity");
+error_log("Price: " . ($price === null ? 'null' : $price));
+error_log("Expires at: '$expires_at_raw'");
+
 $errors = [];
 if ($title === '') $errors[] = 'Title is required.';
 if ($food_type === '') $errors[] = 'Food type is required.';
 if ($quantity <= 0) $errors[] = 'Quantity must be at least 1.';
 if ($expires_at_raw === '') $errors[] = 'Expiry datetime is required.';
+
+error_log("Errors: " . print_r($errors, true));
 
 if (!empty($errors)) {
     http_response_code(400);
@@ -41,6 +62,7 @@ if (!empty($errors)) {
     exit;
 }
 
+// Rest of your existing code...
 // Validate datetime format and 24-hour rule
 $expires_at = DateTime::createFromFormat('Y-m-d\TH:i', $expires_at_raw) ?: DateTime::createFromFormat('Y-m-d H:i:s', $expires_at_raw);
 if (!$expires_at) {
@@ -66,6 +88,11 @@ if ($expires_at > $max) {
 $hotel_id = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : null;
 
 try {
+    // Check if database connection is working
+    if (!$pdo) {
+        throw new Exception('Database connection failed');
+    }
+    
     $stmt = $pdo->prepare("INSERT INTO food_items (hotel_id, title, food_type, portion_size, storage_instructions, quantity, price, expires_at, listed_at, status) VALUES (:hotel_id, :title, :food_type, :portion_size, :storage_instructions, :quantity, :price, :expires_at, NOW(), 'available')");
     $stmt->execute([
         ':hotel_id' => $hotel_id,
@@ -80,6 +107,11 @@ try {
     $newId = $pdo->lastInsertId();
     echo json_encode(['success' => true, 'id' => $newId]);
 } catch (PDOException $e) {
+    error_log("Database error: " . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Failed to insert item.']);
+    echo json_encode(['success' => false, 'error' => 'Failed to insert item: ' . $e->getMessage()]);
+} catch (Exception $e) {
+    error_log("General error: " . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
 }

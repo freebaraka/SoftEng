@@ -8,7 +8,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 // Database connection
 $host = 'localhost';
 $user = 'root';
-$pass = '1234';
+$pass = '';
 $dbname = 'SaveEat';
 $conn = new mysqli($host, $user, $pass, $dbname);
 

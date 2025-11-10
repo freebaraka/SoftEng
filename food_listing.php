@@ -5,7 +5,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     exit();
 }
 
-// Database connection
+// Database connection for displaying data
 $host = 'localhost';
 $user = 'root';
 $pass = '';
@@ -16,41 +16,14 @@ if ($conn->connect_error) {
     die("Database Connection Failed: " . $conn->connect_error);
 }
 
-// Handle Add New Food form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_food'])) {
-    $title = $conn->real_escape_string($_POST['title']);
-    $food_type = $conn->real_escape_string($_POST['food_type']);
-    $portion_size = $conn->real_escape_string($_POST['portion_size']);
-    $price = $conn->real_escape_string($_POST['price']);
-    $storage_instructions = $conn->real_escape_string($_POST['storage_instructions']);
-    $expires_at = $conn->real_escape_string($_POST['expires_at']);
-    $quantity = $conn->real_escape_string($_POST['quantity']);
-
-    // Debug: Check if values are received
-    error_log("Adding food: $title, $food_type, $portion_size, $price, $storage_instructions, $expires_at, $quantity");
-
-    // Convert datetime format
-    $expires_at = date('Y-m-d H:i:s', strtotime($expires_at));
-    $listed_at = date('Y-m-d H:i:s');
-
-    // Insert into food_items table (based on your API structure)
-    $sql = "INSERT INTO food_items (title, food_type, portion_size, price, storage_instructions, expires_at, quantity, listed_at, status) 
-            VALUES ('$title', '$food_type', '$portion_size', '$price', '$storage_instructions', '$expires_at', '$quantity', '$listed_at', 'available')";
-    
-    if ($conn->query($sql) === TRUE) {
-        $_SESSION['message'] = "Food item added successfully!";
-        header("Location: food_listing.php");
-        exit();
-    } else {
-        $_SESSION['error'] = "Error adding food item: " . $conn->error;
-        error_log("Database Error: " . $conn->error);
-    }
-}
+// Check if food_items table exists, if not use foods table
+$table_check = $conn->query("SHOW TABLES LIKE 'food_items'");
+$table_name = $table_check->num_rows > 0 ? 'food_items' : 'foods';
 
 // Handle delete request
 if (isset($_GET['delete_id'])) {
     $delete_id = intval($_GET['delete_id']);
-    $sql = "DELETE FROM food_items WHERE id = $delete_id";
+    $sql = "DELETE FROM $table_name WHERE id = $delete_id";
     if ($conn->query($sql) === TRUE) {
         $_SESSION['message'] = "Food item deleted successfully!";
     } else {
@@ -60,8 +33,8 @@ if (isset($_GET['delete_id'])) {
     exit();
 }
 
-// Fetch foods data from food_items table
-$sql = "SELECT * FROM food_items ORDER BY listed_at DESC";
+// Fetch foods data
+$sql = "SELECT * FROM $table_name ORDER BY created_at DESC";
 $result = $conn->query($sql);
 ?>
 <!DOCTYPE html>
@@ -72,7 +45,6 @@ $result = $conn->query($sql);
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <style>
-        /* Additional CSS to fix scrolling issues */
         .dashboard-body {
             height: 100vh;
             overflow: hidden;
@@ -85,7 +57,6 @@ $result = $conn->query($sql);
             overflow: hidden;
         }
         
-        /* Sidebar with independent scrolling */
         .sidebar {
             width: 230px;
             background: rgba(255, 255, 255, 0.08);
@@ -103,7 +74,6 @@ $result = $conn->query($sql);
             z-index: 1000;
         }
         
-        /* Main content with independent scrolling */
         .main-content {
             flex: 1;
             padding: 2rem;
@@ -113,7 +83,6 @@ $result = $conn->query($sql);
             background: linear-gradient(135deg, #0f172a, #1e293b, #334155);
         }
         
-        /* Custom scrollbar for sidebar */
         .sidebar::-webkit-scrollbar {
             width: 4px;
         }
@@ -123,11 +92,6 @@ $result = $conn->query($sql);
             border-radius: 10px;
         }
         
-        .sidebar::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.1);
-        }
-        
-        /* Custom scrollbar for main content */
         .main-content::-webkit-scrollbar {
             width: 6px;
         }
@@ -137,11 +101,6 @@ $result = $conn->query($sql);
             border-radius: 10px;
         }
         
-        .main-content::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.1);
-        }
-        
-        /* Message Styling */
         .message {
             padding: 12px;
             border-radius: 8px;
@@ -162,7 +121,6 @@ $result = $conn->query($sql);
             border: 1px solid rgba(239, 68, 68, 0.3);
         }
         
-        /* Responsive design */
         @media (max-width: 768px) {
             .sidebar {
                 width: 100%;
@@ -181,19 +139,6 @@ $result = $conn->query($sql);
             }
         }
         
-        /* Ensure content doesn't get hidden behind fixed sidebar */
-        .add-food-form, .food-grid {
-            position: relative;
-            z-index: 1;
-        }
-        
-        /* Enhanced food grid for better scrolling */
-        .food-grid {
-            max-height: none;
-            overflow: visible;
-        }
-        
-        /* DateTime input styling */
         input[type="datetime-local"] {
             width: 100%;
             padding: 12px;
@@ -209,6 +154,13 @@ $result = $conn->query($sql);
             outline: none;
             border-color: #38bdf8;
             background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .form-error {
+            color: #f87171;
+            font-size: 0.875rem;
+            margin-top: 5px;
+            display: none;
         }
     </style>
 </head>
@@ -255,17 +207,38 @@ $result = $conn->query($sql);
             <!-- Add New Food Form -->
             <section class="add-food-form">
                 <h2><i class="fa-solid fa-plus"></i> Add New Food</h2>
-                <form method="POST" action="">
+                <form id="addFoodForm" method="POST">
                     <div class="form-grid">
-                        <input type="text" name="title" placeholder="Food Title" required>
-                        <input type="text" name="food_type" placeholder="Food Type (e.g., Main Course, Dessert)" required>
-                        <input type="text" name="portion_size" placeholder="Portion Size (e.g., 500g, 2 servings)" required>
-                        <input type="number" step="0.01" name="price" placeholder="Price (KES)" required min="0">
-                        <input type="number" name="quantity" placeholder="Quantity" required min="1">
-                        <input type="datetime-local" name="expires_at" required>
+                        <div>
+                            <input type="text" name="title" placeholder="Food Title" required>
+                            <div class="form-error" id="title-error"></div>
+                        </div>
+                        <div>
+                            <input type="text" name="food_type" placeholder="Food Type (e.g., Main Course, Dessert)" required>
+                            <div class="form-error" id="food_type-error"></div>
+                        </div>
+                        <div>
+                            <input type="text" name="portion_size" placeholder="Portion Size (e.g., 500g, 2 servings)" required>
+                            <div class="form-error" id="portion_size-error"></div>
+                        </div>
+                        <div>
+                            <input type="number" step="0.01" name="price" placeholder="Price (KES)" min="0">
+                            <div class="form-error" id="price-error"></div>
+                        </div>
+                        <div>
+                            <input type="number" name="quantity" placeholder="Quantity" required min="1" value="1">
+                            <div class="form-error" id="quantity-error"></div>
+                        </div>
+                        <div>
+                            <input type="datetime-local" name="expires_at" required>
+                            <div class="form-error" id="expires_at-error"></div>
+                        </div>
                     </div>
-                    <textarea name="storage_instructions" placeholder="Storage Instructions (e.g., Refrigerate, Keep frozen)" rows="2" required></textarea>
-                    <button type="submit" name="add_food" class="btn add-btn">
+                    <div>
+                        <textarea name="storage_instructions" placeholder="Storage Instructions (e.g., Refrigerate, Keep frozen)" rows="2" required></textarea>
+                        <div class="form-error" id="storage_instructions-error"></div>
+                    </div>
+                    <button type="submit" class="btn add-btn">
                         <i class="fa-solid fa-circle-plus"></i> Add Food
                     </button>
                 </form>
@@ -277,23 +250,38 @@ $result = $conn->query($sql);
                     <?php while ($row = $result->fetch_assoc()): ?>
                         <div class="food-card">
                             <div class="food-info">
-                                <h3><i class="fa-solid fa-bowl-food"></i> <?= htmlspecialchars($row['title']) ?></h3>
+                                <h3><i class="fa-solid fa-bowl-food"></i> 
+                                    <?= htmlspecialchars($row['title'] ?? $row['food_name'] ?? 'No Title') ?>
+                                </h3>
                                 <p><i class="fa-solid fa-utensils"></i> Type: <?= htmlspecialchars($row['food_type']) ?></p>
                                 <p><i class="fa-solid fa-box"></i> Portion: <?= htmlspecialchars($row['portion_size']) ?></p>
                                 <p><i class="fa-solid fa-money-bill"></i> Price: KES <?= htmlspecialchars($row['price']) ?></p>
-                                <p><i class="fa-solid fa-layer-group"></i> Quantity: <?= htmlspecialchars($row['quantity']) ?></p>
-                                <p><i class="fa-solid fa-calendar-xmark"></i> Expires: <?= date('M j, Y g:i A', strtotime($row['expires_at'])) ?></p>
+                                
+                                <?php if (isset($row['quantity'])): ?>
+                                    <p><i class="fa-solid fa-layer-group"></i> Quantity: <?= htmlspecialchars($row['quantity']) ?></p>
+                                <?php endif; ?>
+                                
+                                <p><i class="fa-solid fa-calendar-xmark"></i> Expires: 
+                                    <?= date('M j, Y g:i A', strtotime($row['expires_at'] ?? $row['expiry_date'] ?? $row['expiry_datetime'])) ?>
+                                </p>
+                                
                                 <?php if (!empty($row['storage_instructions'])): ?>
                                     <p><i class="fa-solid fa-info-circle"></i> Storage: <?= htmlspecialchars($row['storage_instructions']) ?></p>
                                 <?php endif; ?>
-                                <?php if (isset($row['listed_at'])): ?>
-                                    <p><i class="fa-solid fa-clock"></i> Listed: <?= date('M j, Y g:i A', strtotime($row['listed_at'])) ?></p>
+                                
+                                <?php if (isset($row['created_at'])): ?>
+                                    <p><i class="fa-solid fa-clock"></i> Added: <?= date('M j, Y g:i A', strtotime($row['created_at'])) ?></p>
                                 <?php endif; ?>
-                                <p><i class="fa-solid fa-circle" style="color: <?= $row['status'] == 'available' ? '#10b981' : '#ef4444' ?>"></i> Status: <?= ucfirst($row['status']) ?></p>
+                                
+                                <?php if (isset($row['status'])): ?>
+                                    <p><i class="fa-solid fa-circle" style="color: <?= $row['status'] == 'available' ? '#10b981' : '#ef4444' ?>"></i> 
+                                        Status: <?= ucfirst($row['status']) ?>
+                                    </p>
+                                <?php endif; ?>
                             </div>
                             <a href="food_listing.php?delete_id=<?= $row['id'] ?>" 
                                class="delete-btn"
-                               onclick="return confirm('Are you sure you want to remove <?= htmlspecialchars($row['title']) ?>?');">
+                               onclick="return confirm('Are you sure you want to remove <?= htmlspecialchars($row['title'] ?? $row['food_name'] ?? 'this item') ?>?');">
                                 <i class="fa-solid fa-trash"></i> Remove
                             </a>
                         </div>
@@ -310,13 +298,17 @@ $result = $conn->query($sql);
     </div>
 
     <script>
-        // JavaScript to enhance user experience
         document.addEventListener('DOMContentLoaded', function() {
-            // Set minimum datetime for expiry to current time
+            const form = document.getElementById('addFoodForm');
+            const submitBtn = form.querySelector('button[type="submit"]');
+            
+            // Set minimum datetime for expiry to current time + 1 hour (to ensure it's in the future)
             const expiresAtInput = document.querySelector('input[name="expires_at"]');
             if (expiresAtInput) {
                 const now = new Date();
-                // Format to YYYY-MM-DDTHH:MM (datetime-local format)
+                // Add 1 hour to ensure it's always in the future
+                now.setHours(now.getHours() + 1);
+                
                 const year = now.getFullYear();
                 const month = String(now.getMonth() + 1).padStart(2, '0');
                 const day = String(now.getDate()).padStart(2, '0');
@@ -325,54 +317,187 @@ $result = $conn->query($sql);
                 
                 const minDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
                 expiresAtInput.min = minDateTime;
+                
+                // Set default value to 2 hours from now
+                const defaultTime = new Date(now.getTime() + (60 * 60 * 1000)); // +1 more hour
+                const defaultYear = defaultTime.getFullYear();
+                const defaultMonth = String(defaultTime.getMonth() + 1).padStart(2, '0');
+                const defaultDay = String(defaultTime.getDate()).padStart(2, '0');
+                const defaultHours = String(defaultTime.getHours()).padStart(2, '0');
+                const defaultMinutes = String(defaultTime.getMinutes()).padStart(2, '0');
+                
+                const defaultDateTime = `${defaultYear}-${defaultMonth}-${defaultDay}T${defaultHours}:${defaultMinutes}`;
+                expiresAtInput.value = defaultDateTime;
             }
-            
-            // Form validation
-            const addFoodForm = document.querySelector('form[method="POST"]');
-            if (addFoodForm) {
-                addFoodForm.addEventListener('submit', function(e) {
-                    const title = document.querySelector('input[name="title"]').value.trim();
-                    const foodType = document.querySelector('input[name="food_type"]').value.trim();
-                    const portionSize = document.querySelector('input[name="portion_size"]').value.trim();
-                    const price = document.querySelector('input[name="price"]').value;
-                    const quantity = document.querySelector('input[name="quantity"]').value;
-                    const expiresAt = document.querySelector('input[name="expires_at"]').value;
-                    
-                    if (!title || !foodType || !portionSize || !price || !quantity || !expiresAt) {
-                        e.preventDefault();
-                        alert('Please fill in all required fields.');
-                        return;
-                    }
-                    
-                    if (parseFloat(price) < 0) {
-                        e.preventDefault();
-                        alert('Price cannot be negative.');
-                        return;
-                    }
-                    
-                    if (parseInt(quantity) < 1) {
-                        e.preventDefault();
-                        alert('Quantity must be at least 1.');
-                        return;
-                    }
-                    
-                    // Check if expiry datetime is in the future
-                    const selectedDate = new Date(expiresAt);
-                    const now = new Date();
-                    if (selectedDate <= now) {
-                        e.preventDefault();
-                        alert('Expiry date and time must be in the future.');
-                        return;
-                    }
-                    
-                    // Add loading state
-                    const submitBtn = this.querySelector('button[type="submit"]');
-                    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Adding Food...';
-                    submitBtn.disabled = true;
+
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                // Clear previous errors
+                document.querySelectorAll('.form-error').forEach(error => {
+                    error.style.display = 'none';
+                    error.textContent = '';
                 });
+
+                // Get form data
+                const formData = new FormData(form);
+                const data = {
+                    title: formData.get('title').trim(),
+                    food_type: formData.get('food_type').trim(),
+                    portion_size: formData.get('portion_size').trim(),
+                    price: formData.get('price'),
+                    quantity: parseInt(formData.get('quantity')),
+                    expires_at: formData.get('expires_at'),
+                    storage_instructions: formData.get('storage_instructions').trim()
+                };
+
+                console.log("Submitting data:", data);
+
+                // Basic validation
+                let hasErrors = false;
+                
+                if (!data.title) {
+                    showError('title-error', 'Title is required.');
+                    hasErrors = true;
+                }
+                
+                if (!data.food_type) {
+                    showError('food_type-error', 'Food type is required.');
+                    hasErrors = true;
+                }
+                
+                if (!data.portion_size) {
+                    showError('portion_size-error', 'Portion size is required.');
+                    hasErrors = true;
+                }
+                
+                if (!data.quantity || data.quantity < 1) {
+                    showError('quantity-error', 'Quantity must be at least 1.');
+                    hasErrors = true;
+                }
+                
+                if (!data.expires_at) {
+                    showError('expires_at-error', 'Expiry datetime is required.');
+                    hasErrors = true;
+                } else {
+                    const selectedDate = new Date(data.expires_at);
+                    const now = new Date();
+                    const maxDate = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours from now
+                    
+                    if (selectedDate <= now) {
+                        showError('expires_at-error', 'Expiry must be in the future (at least 1 hour from now).');
+                        hasErrors = true;
+                    } else if (selectedDate > maxDate) {
+                        showError('expires_at-error', 'Expiry cannot be more than 24 hours from now.');
+                        hasErrors = true;
+                    }
+                }
+                
+                if (!data.storage_instructions) {
+                    showError('storage_instructions-error', 'Storage instructions are required.');
+                    hasErrors = true;
+                }
+
+                if (hasErrors) return;
+
+                // Add loading state
+                submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Adding Food...';
+                submitBtn.disabled = true;
+
+                try {
+                    console.log("Sending request to API...");
+                    
+                    const response = await fetch('/SoftEng/api/add_food.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    console.log("Response status:", response.status);
+                    
+                    const result = await response.json();
+                    console.log("API response:", result);
+
+                    if (result.success) {
+                        showMessage('Food item added successfully!', 'success');
+                        form.reset();
+                        
+                        // Reset the datetime to a future time
+                        if (expiresAtInput) {
+                            const futureTime = new Date();
+                            futureTime.setHours(futureTime.getHours() + 2);
+                            const futureYear = futureTime.getFullYear();
+                            const futureMonth = String(futureTime.getMonth() + 1).padStart(2, '0');
+                            const futureDay = String(futureTime.getDate()).padStart(2, '0');
+                            const futureHours = String(futureTime.getHours()).padStart(2, '0');
+                            const futureMinutes = String(futureTime.getMinutes()).padStart(2, '0');
+                            expiresAtInput.value = `${futureYear}-${futureMonth}-${futureDay}T${futureHours}:${futureMinutes}`;
+                        }
+                        
+                        // Reload page after 1 second to show new item
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    } else {
+                        // Show API errors
+                        if (result.errors) {
+                            result.errors.forEach(error => {
+                                if (error.includes('Title')) showError('title-error', error);
+                                else if (error.includes('Food type')) showError('food_type-error', error);
+                                else if (error.includes('Quantity')) showError('quantity-error', error);
+                                else if (error.includes('Expiry')) showError('expires_at-error', error);
+                                else showMessage(error, 'error');
+                            });
+                        } else if (result.error) {
+                            if (result.error.includes('Expiry must be in the future')) {
+                                showError('expires_at-error', 'Please select a future time (at least 1 hour from now).');
+                            } else if (result.error.includes('24 hours')) {
+                                showError('expires_at-error', 'Expiry cannot be more than 24 hours from now.');
+                            } else if (result.error.includes('Invalid expires_at format')) {
+                                showError('expires_at-error', 'Please use the correct datetime format.');
+                            } else {
+                                showMessage(result.error, 'error');
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error("Fetch error:", error);
+                    showMessage('Network error. Please try again.', 'error');
+                } finally {
+                    // Reset button state
+                    submitBtn.innerHTML = '<i class="fa-solid fa-circle-plus"></i> Add Food';
+                    submitBtn.disabled = false;
+                }
+            });
+
+            function showError(elementId, message) {
+                const errorElement = document.getElementById(elementId);
+                errorElement.textContent = message;
+                errorElement.style.display = 'block';
             }
-            
-            // Auto-hide messages after 5 seconds
+
+            function showMessage(message, type) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${type}`;
+                messageDiv.innerHTML = `<i class="fa-solid fa-${type === 'success' ? 'circle-check' : 'circle-exclamation'}"></i> ${message}`;
+                
+                // Insert after the header
+                const header = document.querySelector('header');
+                header.parentNode.insertBefore(messageDiv, header.nextSibling);
+                
+                // Auto-hide after 5 seconds
+                setTimeout(() => {
+                    messageDiv.style.opacity = '0';
+                    messageDiv.style.transition = 'opacity 0.5s ease';
+                    setTimeout(() => {
+                        messageDiv.remove();
+                    }, 500);
+                }, 5000);
+            }
+
+            // Auto-hide existing messages after 5 seconds
             const messages = document.querySelectorAll('.message');
             messages.forEach(message => {
                 setTimeout(() => {
