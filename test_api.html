@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test API</title>
+</head>
+<body>
+    <h1>Test Food API</h1>
+    <button onclick="testAPI()">Test API</button>
+    <div id="result"></div>
+
+    <script>
+        async function testAPI() {
+            const testData = {
+                title: 'Test Food',
+                food_type: 'Test Type',
+                portion_size: '1 portion',
+                price: 10.50,
+                quantity: 2,
+                expires_at: '2024-12-31T23:59',
+                storage_instructions: 'Keep refrigerated'
+            };
+
+            try {
+                const response = await fetch('/SoftEng/api/add_food.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+                
+                const result = await response.json();
+                document.getElementById('result').innerHTML = 
+                    '<pre>' + JSON.stringify(result, null, 2) + '</pre>';
+            } catch (error) {
+                document.getElementById('result').innerHTML = 'Error: ' + error;
+            }
+        }
+    </script>
+</body>
+</html>
