@@ -8,7 +8,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 // Database connection
 $host = 'localhost';
 $user = 'root';
-$pass = 'munyoiks7';
+$pass = '';
 $dbname = 'SaveEat';
 $conn = new mysqli($host, $user, $pass, $dbname);
 
@@ -18,18 +18,24 @@ if ($conn->connect_error) {
 
 // Handle Add New Food form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_food'])) {
-    $food_name = $conn->real_escape_string($_POST['food_name']);
+    $title = $conn->real_escape_string($_POST['title']);
     $food_type = $conn->real_escape_string($_POST['food_type']);
     $portion_size = $conn->real_escape_string($_POST['portion_size']);
     $price = $conn->real_escape_string($_POST['price']);
     $storage_instructions = $conn->real_escape_string($_POST['storage_instructions']);
-    $expiry_date = $conn->real_escape_string($_POST['expiry_date']);
+    $expires_at = $conn->real_escape_string($_POST['expires_at']);
+    $quantity = $conn->real_escape_string($_POST['quantity']);
 
     // Debug: Check if values are received
-    error_log("Adding food: $food_name, $food_type, $portion_size, $price, $storage_instructions, $expiry_date");
+    error_log("Adding food: $title, $food_type, $portion_size, $price, $storage_instructions, $expires_at, $quantity");
 
-    $sql = "INSERT INTO foods (food_name, food_type, portion_size, price, storage_instructions, expiry_date) 
-            VALUES ('$food_name', '$food_type', '$portion_size', '$price', '$storage_instructions', '$expiry_date')";
+    // Convert datetime format
+    $expires_at = date('Y-m-d H:i:s', strtotime($expires_at));
+    $listed_at = date('Y-m-d H:i:s');
+
+    // Insert into food_items table (based on your API structure)
+    $sql = "INSERT INTO food_items (title, food_type, portion_size, price, storage_instructions, expires_at, quantity, listed_at, status) 
+            VALUES ('$title', '$food_type', '$portion_size', '$price', '$storage_instructions', '$expires_at', '$quantity', '$listed_at', 'available')";
     
     if ($conn->query($sql) === TRUE) {
         $_SESSION['message'] = "Food item added successfully!";
@@ -44,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_food'])) {
 // Handle delete request
 if (isset($_GET['delete_id'])) {
     $delete_id = intval($_GET['delete_id']);
-    $sql = "DELETE FROM foods WHERE id = $delete_id";
+    $sql = "DELETE FROM food_items WHERE id = $delete_id";
     if ($conn->query($sql) === TRUE) {
         $_SESSION['message'] = "Food item deleted successfully!";
     } else {
@@ -54,8 +60,8 @@ if (isset($_GET['delete_id'])) {
     exit();
 }
 
-// Fetch foods data
-$sql = "SELECT * FROM foods ORDER BY created_at DESC";
+// Fetch foods data from food_items table
+$sql = "SELECT * FROM food_items ORDER BY listed_at DESC";
 $result = $conn->query($sql);
 ?>
 <!DOCTYPE html>
@@ -69,7 +75,7 @@ $result = $conn->query($sql);
         /* Additional CSS to fix scrolling issues */
         .dashboard-body {
             height: 100vh;
-            overflow: hidden; /* Prevent body scrolling */
+            overflow: hidden;
             margin: 0;
         }
         
@@ -90,8 +96,8 @@ $result = $conn->query($sql);
             justify-content: space-between;
             border-right: 1px solid rgba(255, 255, 255, 0.1);
             height: 100vh;
-            overflow-y: auto; /* Enable scrolling only for sidebar */
-            position: fixed; /* Fixed positioning */
+            overflow-y: auto;
+            position: fixed;
             left: 0;
             top: 0;
             z-index: 1000;
@@ -103,7 +109,7 @@ $result = $conn->query($sql);
             padding: 2rem;
             overflow-y: auto;
             height: 100vh;
-            margin-left: 230px; /* Account for fixed sidebar width */
+            margin-left: 230px;
             background: linear-gradient(135deg, #0f172a, #1e293b, #334155);
         }
         
@@ -183,8 +189,26 @@ $result = $conn->query($sql);
         
         /* Enhanced food grid for better scrolling */
         .food-grid {
-            max-height: none; /* Remove any fixed height */
+            max-height: none;
             overflow: visible;
+        }
+        
+        /* DateTime input styling */
+        input[type="datetime-local"] {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+        
+        input[type="datetime-local"]:focus {
+            outline: none;
+            border-color: #38bdf8;
+            background: rgba(255, 255, 255, 0.15);
         }
     </style>
 </head>
@@ -233,11 +257,12 @@ $result = $conn->query($sql);
                 <h2><i class="fa-solid fa-plus"></i> Add New Food</h2>
                 <form method="POST" action="">
                     <div class="form-grid">
-                        <input type="text" name="food_name" placeholder="Food Name" required>
+                        <input type="text" name="title" placeholder="Food Title" required>
                         <input type="text" name="food_type" placeholder="Food Type (e.g., Main Course, Dessert)" required>
                         <input type="text" name="portion_size" placeholder="Portion Size (e.g., 500g, 2 servings)" required>
                         <input type="number" step="0.01" name="price" placeholder="Price (KES)" required min="0">
-                        <input type="date" name="expiry_date" required min="<?php echo date('Y-m-d'); ?>">
+                        <input type="number" name="quantity" placeholder="Quantity" required min="1">
+                        <input type="datetime-local" name="expires_at" required>
                     </div>
                     <textarea name="storage_instructions" placeholder="Storage Instructions (e.g., Refrigerate, Keep frozen)" rows="2" required></textarea>
                     <button type="submit" name="add_food" class="btn add-btn">
@@ -252,21 +277,23 @@ $result = $conn->query($sql);
                     <?php while ($row = $result->fetch_assoc()): ?>
                         <div class="food-card">
                             <div class="food-info">
-                                <h3><i class="fa-solid fa-bowl-food"></i> <?= htmlspecialchars($row['food_name']) ?></h3>
+                                <h3><i class="fa-solid fa-bowl-food"></i> <?= htmlspecialchars($row['title']) ?></h3>
                                 <p><i class="fa-solid fa-utensils"></i> Type: <?= htmlspecialchars($row['food_type']) ?></p>
                                 <p><i class="fa-solid fa-box"></i> Portion: <?= htmlspecialchars($row['portion_size']) ?></p>
                                 <p><i class="fa-solid fa-money-bill"></i> Price: KES <?= htmlspecialchars($row['price']) ?></p>
-                                <p><i class="fa-solid fa-calendar-xmark"></i> Expiry: <?= htmlspecialchars($row['expiry_date']) ?></p>
+                                <p><i class="fa-solid fa-layer-group"></i> Quantity: <?= htmlspecialchars($row['quantity']) ?></p>
+                                <p><i class="fa-solid fa-calendar-xmark"></i> Expires: <?= date('M j, Y g:i A', strtotime($row['expires_at'])) ?></p>
                                 <?php if (!empty($row['storage_instructions'])): ?>
                                     <p><i class="fa-solid fa-info-circle"></i> Storage: <?= htmlspecialchars($row['storage_instructions']) ?></p>
                                 <?php endif; ?>
-                                <?php if (isset($row['created_at'])): ?>
-                                    <p><i class="fa-solid fa-clock"></i> Added: <?= date('M j, Y', strtotime($row['created_at'])) ?></p>
+                                <?php if (isset($row['listed_at'])): ?>
+                                    <p><i class="fa-solid fa-clock"></i> Listed: <?= date('M j, Y g:i A', strtotime($row['listed_at'])) ?></p>
                                 <?php endif; ?>
+                                <p><i class="fa-solid fa-circle" style="color: <?= $row['status'] == 'available' ? '#10b981' : '#ef4444' ?>"></i> Status: <?= ucfirst($row['status']) ?></p>
                             </div>
                             <a href="food_listing.php?delete_id=<?= $row['id'] ?>" 
                                class="delete-btn"
-                               onclick="return confirm('Are you sure you want to remove <?= htmlspecialchars($row['food_name']) ?>?');">
+                               onclick="return confirm('Are you sure you want to remove <?= htmlspecialchars($row['title']) ?>?');">
                                 <i class="fa-solid fa-trash"></i> Remove
                             </a>
                         </div>
@@ -285,24 +312,33 @@ $result = $conn->query($sql);
     <script>
         // JavaScript to enhance user experience
         document.addEventListener('DOMContentLoaded', function() {
-            // Set minimum date for expiry date to today
-            const expiryDateInput = document.querySelector('input[name="expiry_date"]');
-            if (expiryDateInput) {
-                const today = new Date().toISOString().split('T')[0];
-                expiryDateInput.min = today;
+            // Set minimum datetime for expiry to current time
+            const expiresAtInput = document.querySelector('input[name="expires_at"]');
+            if (expiresAtInput) {
+                const now = new Date();
+                // Format to YYYY-MM-DDTHH:MM (datetime-local format)
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                
+                const minDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+                expiresAtInput.min = minDateTime;
             }
             
             // Form validation
             const addFoodForm = document.querySelector('form[method="POST"]');
             if (addFoodForm) {
                 addFoodForm.addEventListener('submit', function(e) {
-                    const foodName = document.querySelector('input[name="food_name"]').value.trim();
+                    const title = document.querySelector('input[name="title"]').value.trim();
                     const foodType = document.querySelector('input[name="food_type"]').value.trim();
                     const portionSize = document.querySelector('input[name="portion_size"]').value.trim();
                     const price = document.querySelector('input[name="price"]').value;
-                    const expiryDate = document.querySelector('input[name="expiry_date"]').value;
+                    const quantity = document.querySelector('input[name="quantity"]').value;
+                    const expiresAt = document.querySelector('input[name="expires_at"]').value;
                     
-                    if (!foodName || !foodType || !portionSize || !price || !expiryDate) {
+                    if (!title || !foodType || !portionSize || !price || !quantity || !expiresAt) {
                         e.preventDefault();
                         alert('Please fill in all required fields.');
                         return;
@@ -314,7 +350,22 @@ $result = $conn->query($sql);
                         return;
                     }
                     
-                    // Optional: Add loading state
+                    if (parseInt(quantity) < 1) {
+                        e.preventDefault();
+                        alert('Quantity must be at least 1.');
+                        return;
+                    }
+                    
+                    // Check if expiry datetime is in the future
+                    const selectedDate = new Date(expiresAt);
+                    const now = new Date();
+                    if (selectedDate <= now) {
+                        e.preventDefault();
+                        alert('Expiry date and time must be in the future.');
+                        return;
+                    }
+                    
+                    // Add loading state
                     const submitBtn = this.querySelector('button[type="submit"]');
                     submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Adding Food...';
                     submitBtn.disabled = true;
