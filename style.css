@@ -7,14 +7,9 @@
 }
 
 body {
-  height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  min-height: 100vh;
   background: linear-gradient(135deg, #0f172a, #1e293b, #334155);
   color: #fff;
-  overflow: hidden;
-  overflow-y: scroll; /* Always show vertical scrollbar */
 }
 
 
@@ -172,7 +167,7 @@ body {
 .dashboard-body {
   background: linear-gradient(135deg, #0f172a, #1e293b, #334155);
   color: #fff;
-  height: 100vh;
+  min-height: 100vh;
   margin: 0;
   display: flex;
   font-family: "Poppins", sans-serif;
@@ -194,6 +189,8 @@ body {
   justify-content: space-between;
   border-right: 1px solid rgba(255, 255, 255, 0.1);
   transition: width 0.3s ease;
+  max-height: 100vh;
+  overflow-y: auto;
 }
 
 .sidebar h2 {
@@ -241,6 +238,7 @@ body {
 .main-content {
   flex: 1;
   padding: 2rem;
+  max-height: 100vh;
   overflow-y: auto;
 }
 
