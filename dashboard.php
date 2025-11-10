@@ -170,12 +170,12 @@ $result = $conn->query($sql);
                 <div class="card">
                     <i class="fa-solid fa-apple-whole card-icon"></i>
                     <h3>Food Donations</h3>
-                    <p>128</p>
+                    <p>5</p>
                 </div>
                 <div class="card">
                     <i class="fa-solid fa-hand-holding-heart card-icon"></i>
-                    <h3>Beneficiaries</h3>
-                    <p>42</p>
+                    <h3>Beneficiaries<br>(Registered)</h3>
+                    <p>22</p>
                 </div>
                 <div class="card">
                     <i class="fa-solid fa-handshake-angle card-icon"></i>
