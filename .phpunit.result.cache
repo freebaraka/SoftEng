@@ -1,1 +1,5 @@
+<<<<<<< HEAD
 {"version":1,"defects":[],"times":{"UserTest::testUserCreation":0.016,"UserTest::testPasswordCheck":0.001}}
+=======
+{"version":1,"defects":[],"times":{"UserTest::testUserCreation":0.005,"UserTest::testPasswordCheck":0.006}}
+>>>>>>> 54eb51f054d286f50827095c61427be3fc89c318
