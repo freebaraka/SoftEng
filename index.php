@@ -2,7 +2,7 @@
 session_start();
 
 // Database connection
-$conn = new mysqli('localhost','root','','SaveEat');
+$conn = new mysqli('localhost','root','munyoiks7','SaveEat');
 if ($conn->connect_error) {
     die("Database connection failed: " . $conn->connect_error);
 }
